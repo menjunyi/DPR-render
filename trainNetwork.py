@@ -5,6 +5,7 @@ sys.path.append('utils')
 from model.defineHourglass_512_gray_skip import *
 import cv2
 import os
+import matplotlib.pyplot as plt
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -111,28 +112,30 @@ for epoch in range(epochs):
         if epoch < 10 or i == 0:
             loss = image_loss(outputImg, outputSH, all_imputL[i], all_inputsh[i])
         else:
+            # if current is the last image,
             if all_imgname[i] == last_img_name:
                 loss = image_loss(outputImg, outputSH, all_imputL[i], all_inputsh[i]) + 0.5 * feature_loss(feature, features[-1])
                 features.append(feature.detach())
             else:
                 loss = image_loss(outputImg, outputSH, all_imputL[i], all_inputsh[i])
                 features = [feature.detach()]
-        
             last_img_name = all_imgname[i]
-        
         optimizer.zero_grad()
         loss.backward()
+        print(loss)
         optimizer.step()
         outputImg = outputImg[0].cpu().data.numpy()
         outputImg = outputImg.transpose((1,2,0))
         outputImg = np.squeeze(outputImg)
         outputImg = (outputImg*255.0).astype(np.uint8)
-        Lab[:,:,0] = outputImg
-        resultLab = cv2.cvtColor(Lab, cv2.COLOR_LAB2BGR)
-        resultLab = cv2.resize(resultLab, (col, row))
+    # Why convert to lab?
+    Lab[:,:,0] = outputImg
+    resultLab = cv2.cvtColor(Lab, cv2.COLOR_Lab2RGB)
+    resultLab = cv2.resize(resultLab, (col, row))
 
-        #cv2.imshow('img',resultLab)
-        #cv2.waitKey(0)
+    plt.imshow(resultLab)
+    plt.axis('off')  # 不显示坐标轴
+    plt.show()
 
 
 torch.save(hourglass_network.state_dict(),'my_trained_model')

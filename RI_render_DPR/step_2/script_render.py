@@ -18,7 +18,7 @@ with open('../data.list') as f:
     for line in f:
         faceList.append(line.strip())
 
-savePath = '../result'
+savePath = '../.result'
 for item in faceList:
     imgName = item.split('.')[0]
     subFolder = os.path.join(savePath, imgName)

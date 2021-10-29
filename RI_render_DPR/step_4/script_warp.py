@@ -10,7 +10,7 @@ with open(os.path.join('../data.list')) as f:
         faceList.append(line.strip())
 
 imgPath = '../data'
-savePath = '../result'
+savePath = '../.result'
 
 for item in faceList:
     imgName = item.split('.')[0]

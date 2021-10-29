@@ -167,7 +167,7 @@ def script_relighting(numImgs):
             faceList.append(line.strip())
 
     imgPath = '../data'
-    dataPath = '../result/'
+    dataPath = '../.result/'
     relightPath = '../relighting/'
     labelPath = '../face_parsing/'
 

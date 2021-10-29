@@ -39,17 +39,17 @@ modelFolder = 'trained_model/'
 from defineHourglass_512_gray_skip import *
 
 my_network = HourglassNet()
-my_network.load_state_dict(torch.load(os.path.join(modelFolder, 'trained_model_03.t7')))
-my_network.cuda()
+my_network.load_state_dict(torch.load(os.path.join(modelFolder, 'my_trained_model')))
+my_network.cpu()
 my_network.train(False)
 
 lightFolder = 'data/example_light/'
 
-saveFolder = 'result'
+saveFolder = '.result'
 if not os.path.exists(saveFolder):
     os.makedirs(saveFolder)
 
-img = cv2.imread('data/obama.jpg')
+img = cv2.imread('data/obama.png')
 row, col, _ = img.shape
 img = cv2.resize(img, (512, 512))
 Lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
@@ -58,7 +58,7 @@ inputL = Lab[:,:,0]
 inputL = inputL.astype(np.float32)/255.0
 inputL = inputL.transpose((0,1))
 inputL = inputL[None,None,...]
-inputL = Variable(torch.from_numpy(inputL).cuda())
+inputL = Variable(torch.from_numpy(inputL).cpu())
 
 for i in range(7):
     sh = np.loadtxt(os.path.join(lightFolder, 'rotate_light_{:02d}.txt'.format(i)))
@@ -83,7 +83,7 @@ for i in range(7):
     #----------------------------------------------
     #  rendering images using the network
     sh = np.reshape(sh, (1,9,1,1)).astype(np.float32)
-    sh = Variable(torch.from_numpy(sh).cuda())
+    sh = Variable(torch.from_numpy(sh).cpu())
     outputImg, outputSH  = my_network(inputL, sh, 0)
     outputImg = outputImg[0].cpu().data.numpy()
     outputImg = outputImg.transpose((1,2,0))
