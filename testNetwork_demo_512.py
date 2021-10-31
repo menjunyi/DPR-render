@@ -33,13 +33,14 @@ normal = np.concatenate((x[...,None], y[...,None], z[...,None]), axis=2)
 normal = np.reshape(normal, (-1, 3))
 #-----------------------------------------------------------------
 
-modelFolder = 'trained_model/'
+modelFolder = './trained_model/'
 
 
 # load model
 from defineHourglass_512_gray_skip import *
 
 my_network = HourglassNet()
+#my_network.load_state_dict(torch.load(os.path.join(modelFolder, 'trained_model_03.t7')))
 my_network.load_state_dict(torch.load(os.path.join(modelFolder, 'my_trained_model')))
 my_network.cuda()
 my_network.train(False)

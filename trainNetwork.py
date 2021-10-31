@@ -5,9 +5,12 @@ sys.path.append('utils')
 from model.defineHourglass_512_gray_skip import *
 import cv2
 import os
+import matplotlib.pyplot as plt
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+print('torch',torch.__version__)
+print(torch.cuda.is_available())
 class image_gradient(nn.Module):
     def __init__(self) -> None:
         super(image_gradient, self).__init__()
@@ -43,23 +46,22 @@ def feature_loss(output_feature, other_feature):
 
 hourglass_network = HourglassNet()
 
-#hourglass_network.cuda()
+hourglass_network.to(device)
 hourglass_network.train(True)
 
-trainingFolder = './RI_render_DPR2'
-faceList = []
-with open(trainingFolder + '/data.list') as f:
-    for line in f:
-        faceList.append(line.strip())
-imgPath =  trainingFolder + '/relighting/'
+
+# get list of folder in training dict
+#trainingFolder = './data/dpr_dataset/DPR_dataset'
+trainingFolder = './relighting'
+faceList = os.listdir(trainingFolder)
 
 all_imputL = []
 all_inputsh = []
 all_imgname = []
-
+i = 0
 for item in faceList:
-    imgName = item.split('.')[0]
-    foldername = os.path.join(imgPath, imgName)
+    imgName = item
+    foldername = os.path.join(trainingFolder, imgName)
     lights = []
     
     # get input images
@@ -67,7 +69,7 @@ for item in faceList:
         if f.startswith(imgName) and f.endswith(".png"):
             lights.append(f[-6:-4])
 
-            img = cv2.imread(os.path.join(imgPath, imgName, f))
+            img = cv2.imread(os.path.join(foldername, f))
             row, col, _ = img.shape
             img = cv2.resize(img, (512, 512))
             Lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
@@ -77,9 +79,9 @@ for item in faceList:
             inputL = inputL.transpose((0,1))
             inputL = inputL[None,None,...]
             #inputL = Variable(torch.from_numpy(inputL).cuda())
-            inputL = Variable(torch.from_numpy(inputL))
+            inputL = Variable(torch.from_numpy(inputL)).to(device)
             all_imputL.append(inputL)
-            all_imgname.append(imgName)
+            all_imgname.append(f)
 
     # get input lights
     for l in lights:
@@ -88,8 +90,12 @@ for item in faceList:
         sh = sh * 0.7
         sh = np.reshape(sh, (1,9,1,1)).astype(np.float32)
         #sh = Variable(torch.from_numpy(sh).cuda())
-        sh = Variable(torch.from_numpy(sh))
+        sh = Variable(torch.from_numpy(sh)).to(device)
         all_inputsh.append(sh)
+    i = i + 1
+    print("add data",item , 'count',i)
+    if i > 10:
+        break
 
 optimizer = torch.optim.Adam(hourglass_network.parameters())
 
@@ -127,12 +133,13 @@ for epoch in range(epochs):
         outputImg = outputImg.transpose((1,2,0))
         outputImg = np.squeeze(outputImg)
         outputImg = (outputImg*255.0).astype(np.uint8)
-        Lab[:,:,0] = outputImg
-        resultLab = cv2.cvtColor(Lab, cv2.COLOR_LAB2BGR)
-        resultLab = cv2.resize(resultLab, (col, row))
+    Lab[:,:,0] = outputImg
+    resultLab = cv2.cvtColor(Lab, cv2.COLOR_Lab2RGB)
+    resultLab = cv2.resize(resultLab, (col, row))
 
-        #cv2.imshow('img',resultLab)
-        #cv2.waitKey(0)
+    plt.imshow(resultLab)
+    plt.axis('off')  # 不显示坐标轴
+    plt.show()
 
 
-torch.save(hourglass_network.state_dict(),'my_trained_model')
+torch.save(hourglass_network.state_dict(),'./trained_model/my_trained_model')
