@@ -37,7 +37,7 @@ baseFolder = '../useful_code/3DDFA/'
 class fit_3DDFA():
     def __init__(self, mode='gpu'):
         # load model
-        checkpoint_fp = os.path.join(baseFolder, 'models/phase1_wpdc_vdc_v2.pth.tar')
+        checkpoint_fp = os.path.join(baseFolder, 'models/phase1_wpdc_vdc.pth.tar')
         checkpoint = torch.load(checkpoint_fp, map_location=lambda storage, loc: storage)['state_dict']
         self.model = getattr(mobilenet_v1, 'mobilenet_1')(num_classes=62)  # 62 = 12(pose) + 40(shape) +10(expression)
 
@@ -48,7 +48,7 @@ class fit_3DDFA():
         self.model.load_state_dict(model_dict)
         self.mode = mode
         if self.mode == 'gpu':
-            cudnn.benchmark = True
+            cudnn.becd ../nchmark = True
             self.model = self.model.cuda()
         self.model.eval()
 

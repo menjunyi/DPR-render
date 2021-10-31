@@ -73,7 +73,9 @@ def get_node(albedo_landmark, face_landmark, imgWidth, imgHeight, saveFolder):
     fid_1.close()
     cmd_2 = '../useful_code/triangle_berkeley/triangle -q30 ' \
             + os.path.join(saveFolder, 'albedo_landmarks')
-    os.system(cmd_2)
+    print(cmd_2)
+    os.system('make')
+    # os.system(cmd_2)
 
     # create triangle
     node_list =  loadNode(os.path.join(saveFolder, 'albedo_landmarks.1.node'))
