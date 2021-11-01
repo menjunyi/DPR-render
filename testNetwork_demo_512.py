@@ -38,7 +38,7 @@ modelFolder = './trained_model/'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # load model
-from defineHourglass_512_gray_skip import *
+from model.defineHourglass_512_gray_skip import *
 
 my_network = HourglassNet()
 #my_network.load_state_dict(torch.load(os.path.join(modelFolder, 'trained_model_03.t7')))

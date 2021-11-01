@@ -1,0 +1,3 @@
+*.pyc
+result/*
+parse_argument.py
