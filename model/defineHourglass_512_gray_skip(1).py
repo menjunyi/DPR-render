@@ -81,7 +81,6 @@ class HourglassBlock(nn.Module):
         out_upper = self.upper(x)
         out_lower = self.downSample(x)
         out_lower = self.low1(out_lower)
-        self.mid_feature = out_lower
         out_lower, out_middle = self.middle(out_lower, light, count+1, skip_count)
         out_lower = self.low2(out_lower)
         out_lower = self.upSample(out_lower)
@@ -119,6 +118,7 @@ class lightingNet(nn.Module):
         self.post_relu2 = nn.ReLU()  # to be consistance with the original feature
 
     def forward(self, innerFeat, target_light, count, skip_count):
+        self.faceFeat = innerFeat[:,self.ncInput:,:,:]
         x = innerFeat[:,0:self.ncInput,:,:] # lighting feature
         _, _, row, col = x.shape
 

@@ -6,8 +6,6 @@ from model.defineHourglass_512_gray_skip import *
 import cv2
 import os
 import matplotlib.pyplot as plt
-import torch
-import random
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -58,40 +56,33 @@ hourglass_network.train(True)
 trainingFolder = './relighting'
 faceList = os.listdir(trainingFolder)
 
-all_inputL = []
-all_targetL = []
+all_imputL = []
 all_inputsh = []
-all_targetsh = []
 all_imgname = []
 i = 0
 for item in faceList:
     imgName = item
     foldername = os.path.join(trainingFolder, imgName)
     lights = []
-
-    all_targetL_for_item = []
-    all_targetsh_for_item = []
-    all_inputL_for_item = []
-    all_inputsh_for_item = []
-
-    # get target images
+    
+    # get input images
     for f in os.listdir(foldername):
         if f.startswith(imgName) and f.endswith(".png"):
             lights.append(f[-6:-4])
 
-            img = cv2.imread(os.path.join(trainingFolder, imgName, f))
+            img = cv2.imread(os.path.join(foldername, f))
             row, col, _ = img.shape
             img = cv2.resize(img, (512, 512))
             Lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
 
-            targetL = Lab[:,:,0]
-            targetL = targetL.astype(np.float32)/255.0
-            targetL = targetL.transpose((0,1))
-            targetL = targetL[None,None,...]
-            #targetL = Variable(torch.from_numpy(inputL).cuda())
-            targetL = Variable(torch.from_numpy(targetL))
-            all_targetL_for_item.append(targetL)
-            all_imgname.append(imgName)
+            inputL = Lab[:,:,0]
+            inputL = inputL.astype(np.float32)/255.0
+            inputL = inputL.transpose((0,1))
+            inputL = inputL[None,None,...]
+            #inputL = Variable(torch.from_numpy(inputL).cuda())
+            inputL = Variable(torch.from_numpy(inputL)).to(device)
+            all_imputL.append(inputL)
+            all_imgname.append(f)
 
     # get input lights
     for l in lights:
@@ -100,53 +91,38 @@ for item in faceList:
         sh = sh * 0.7
         sh = np.reshape(sh, (1,9,1,1)).astype(np.float32)
         #sh = Variable(torch.from_numpy(sh).cuda())
-        sh = Variable(torch.from_numpy(sh))
-        all_inputsh_for_item.append(sh)
-
-    # the input image and target lighting are of the same data
-    # the target image and input lighting are of the same data
-    tmp = list(zip(all_targetL_for_item, all_inputsh_for_item))
-    random.shuffle(tmp)
-    all_inputL_for_item, all_targetsh_for_item = zip(*tmp)
-    all_inputL_for_item = [a for a in all_inputL_for_item]
-    all_targetsh_for_item = [a for a in all_targetsh_for_item]
-
-    all_inputsh = all_inputsh + all_inputsh_for_item
-    all_inputL = all_inputL + all_inputL_for_item
-    all_targetL = all_targetL + all_targetL_for_item
-    all_targetsh = all_targetsh + all_targetsh_for_item
+        sh = Variable(torch.from_numpy(sh)).to(device)
+        all_inputsh.append(sh)
     i = i + 1
     print("add data",item , 'count',i)
     if i > 10:
         break
 
 optimizer = torch.optim.Adam(hourglass_network.parameters())
-
 epochs = 14
 
 for epoch in range(epochs):
     print("epoch =", epoch)
     last_img_name = ""
     features = []
-    for i in range(len(all_targetL)):
+    for i in range(len(all_imputL)):
         # skip training
         if epoch < 5:
-            outputImg, outputSH  = hourglass_network(all_inputL[i].to(device), all_inputsh[i].to(device), 4)
+            outputImg, outputSH  = hourglass_network(all_imputL[i], all_inputsh[i], 4)
         elif epoch >= 5 and epoch <= 7:
-            outputImg, outputSH  = hourglass_network(all_inputL[i].to(device), all_inputsh[i].to(device), 8 - epoch)
+            outputImg, outputSH  = hourglass_network(all_imputL[i], all_inputsh[i], 8 - epoch)
         else:
-            outputImg, outputSH  = hourglass_network(all_inputL[i].to(device), all_inputsh[i].to(device), 0)
-        feature = hourglass_network.light.faceFeat
+            outputImg, outputSH  = hourglass_network(all_imputL[i], all_inputsh[i], 0)
+        feature = hourglass_network.HG0.mid_feature
 
         if epoch < 10 or i == 0:
-            loss = image_loss(outputImg.to(device), outputSH.to(device), all_targetL[i].to(device), all_targetsh[i].to(device))
+            loss = image_loss(outputImg, outputSH, all_imputL[i], all_inputsh[i])
         else:
             if all_imgname[i] == last_img_name:
-                loss = image_loss(outputImg.to(device), outputSH.to(device), all_targetL[i].to(device), all_targetsh[i].to(device)) \
-                       + 0.5 * feature_loss(feature, features[-1])
+                loss = image_loss(outputImg, outputSH, all_imputL[i], all_inputsh[i]) + 0.5 * feature_loss(feature, features[-1])
                 features.append(feature.detach())
             else:
-                loss = image_loss(outputImg.to(device), outputSH.to(device), all_targetL[i].to(device), all_targetsh[i].to(device))
+                loss = image_loss(outputImg, outputSH, all_imputL[i], all_inputsh[i])
                 features = [feature.detach()]
         
             last_img_name = all_imgname[i]

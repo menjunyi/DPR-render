@@ -44,9 +44,9 @@ class BasicBlock(nn.Module):
         out = self.bn2(out)
         
         if self.inplanes != self.outplanes:
-            out += self.shortcuts(x)
+        	out += self.shortcuts(x)
         else:
-            out += x
+        	out += x
         
         out = F.relu(out)
         return out
@@ -81,7 +81,6 @@ class HourglassBlock(nn.Module):
         out_upper = self.upper(x)
         out_lower = self.downSample(x)
         out_lower = self.low1(out_lower)
-        self.mid_feature = out_lower
         out_lower, out_middle = self.middle(out_lower, light, count+1, skip_count)
         out_lower = self.low2(out_lower)
         out_lower = self.upSample(out_lower)
@@ -119,6 +118,7 @@ class lightingNet(nn.Module):
         self.post_relu2 = nn.ReLU()  # to be consistance with the original feature
 
     def forward(self, innerFeat, target_light, count, skip_count):
+        self.faceFeat = innerFeat[:,self.ncInput:,:,:]
         x = innerFeat[:,0:self.ncInput,:,:] # lighting feature
         _, _, row, col = x.shape
 
@@ -169,6 +169,7 @@ class HourglassNet(nn.Module):
         self.HG1 = HourglassBlock(self.ncHG2, self.ncHG1, self.HG0)
         self.HG2 = HourglassBlock(self.ncHG3, self.ncHG2, self.HG1)
         self.HG3 = HourglassBlock(self.ncPre, self.ncHG3, self.HG2)
+
 
         self.conv_1 = nn.Conv2d(self.ncPre, self.ncPre, kernel_size=3, stride=1, padding=1)
         self.bn_1 = nn.BatchNorm2d(self.ncPre) 

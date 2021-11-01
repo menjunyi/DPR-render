@@ -5,14 +5,11 @@ sys.path.append('utils')
 from model.defineHourglass_512_gray_skip import *
 import cv2
 import os
-import matplotlib.pyplot as plt
 import torch
 import random
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-print('torch',torch.__version__)
-print(torch.cuda.is_available())
 class image_gradient(nn.Module):
     def __init__(self) -> None:
         super(image_gradient, self).__init__()
@@ -39,47 +36,47 @@ def image_loss(output_img, output_sh, target_img, target_sh):
     l2_x = nn.L1Loss(reduction='sum')(out_img_x_grad, target_img_x_grad)
     l2_y = nn.L1Loss(reduction='sum')(out_img_y_grad, target_img_y_grad)
 
-    l3 = nn.MSELoss(reduction='mean')(output_sh, target_sh)
-    #loss = (l1 + l2_x + l2_y) / N_img + l3
-    loss =  l1
-    return loss
+    l3 = nn.MSELoss(reduction='sum')(output_sh, target_sh)
+    
+    return (l1 + l2_x + l2_y) / N_img + l3
 
 def feature_loss(output_feature, other_feature):
     return nn.MSELoss(reduction='mean')(output_feature, other_feature)
 
 hourglass_network = HourglassNet()
 
-hourglass_network.to(device)
+#hourglass_network.cuda()
 hourglass_network.train(True)
 
-
-# get list of folder in training dict
-#trainingFolder = './data/dpr_dataset/DPR_dataset'
-trainingFolder = './relighting'
-faceList = os.listdir(trainingFolder)
+trainingFolder = './RI_render_DPR'
+faceList = []
+with open(trainingFolder + '/data.list') as f:
+    for line in f:
+        faceList.append(line.strip())
+relighted_imgPath =  trainingFolder + '/relighting/'
 
 all_inputL = []
 all_targetL = []
 all_inputsh = []
 all_targetsh = []
 all_imgname = []
-i = 0
+
 for item in faceList:
-    imgName = item
-    foldername = os.path.join(trainingFolder, imgName)
+    imgName = item.split('.')[0]
+    foldername = os.path.join(relighted_imgPath, imgName)
     lights = []
 
     all_targetL_for_item = []
     all_targetsh_for_item = []
     all_inputL_for_item = []
     all_inputsh_for_item = []
-
+    
     # get target images
     for f in os.listdir(foldername):
         if f.startswith(imgName) and f.endswith(".png"):
             lights.append(f[-6:-4])
 
-            img = cv2.imread(os.path.join(trainingFolder, imgName, f))
+            img = cv2.imread(os.path.join(relighted_imgPath, imgName, f))
             row, col, _ = img.shape
             img = cv2.resize(img, (512, 512))
             Lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
@@ -115,15 +112,10 @@ for item in faceList:
     all_inputL = all_inputL + all_inputL_for_item
     all_targetL = all_targetL + all_targetL_for_item
     all_targetsh = all_targetsh + all_targetsh_for_item
-    i = i + 1
-    print("add data",item , 'count',i)
-    if i > 10:
-        break
 
 optimizer = torch.optim.Adam(hourglass_network.parameters())
 
 epochs = 14
-
 for epoch in range(epochs):
     print("epoch =", epoch)
     last_img_name = ""
@@ -131,22 +123,22 @@ for epoch in range(epochs):
     for i in range(len(all_targetL)):
         # skip training
         if epoch < 5:
-            outputImg, outputSH  = hourglass_network(all_inputL[i].to(device), all_inputsh[i].to(device), 4)
+            outputImg, outputSH  = hourglass_network(all_inputL[i], all_inputsh[i], 4)
         elif epoch >= 5 and epoch <= 7:
-            outputImg, outputSH  = hourglass_network(all_inputL[i].to(device), all_inputsh[i].to(device), 8 - epoch)
+            outputImg, outputSH  = hourglass_network(all_inputL[i], all_inputsh[i], 8 - epoch)
         else:
-            outputImg, outputSH  = hourglass_network(all_inputL[i].to(device), all_inputsh[i].to(device), 0)
+            outputImg, outputSH  = hourglass_network(all_inputL[i], all_inputsh[i], 0)
         feature = hourglass_network.light.faceFeat
 
+        # different loss functions for different epochs
         if epoch < 10 or i == 0:
-            loss = image_loss(outputImg.to(device), outputSH.to(device), all_targetL[i].to(device), all_targetsh[i].to(device))
+            loss = image_loss(outputImg, outputSH, all_targetL[i], all_targetsh[i])
         else:
             if all_imgname[i] == last_img_name:
-                loss = image_loss(outputImg.to(device), outputSH.to(device), all_targetL[i].to(device), all_targetsh[i].to(device)) \
-                       + 0.5 * feature_loss(feature, features[-1])
+                loss = image_loss(outputImg, outputSH, all_targetL[i], all_targetsh[i]) + 0.5 * feature_loss(feature, features[-1])
                 features.append(feature.detach())
             else:
-                loss = image_loss(outputImg.to(device), outputSH.to(device), all_targetL[i].to(device), all_targetsh[i].to(device))
+                loss = image_loss(outputImg, outputSH, all_targetL[i], all_targetsh[i])
                 features = [feature.detach()]
         
             last_img_name = all_imgname[i]
@@ -154,20 +146,18 @@ for epoch in range(epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        outputImg = outputImg[0].cpu().data.numpy()
-        outputImg = outputImg.transpose((1,2,0))
-        outputImg = np.squeeze(outputImg)
-        outputImg = (outputImg*255.0).astype(np.uint8)
-    print(loss.detach().cpu().numpy())
-    Lab[:,:,0] = outputImg
-    resultLab = cv2.cvtColor(Lab, cv2.COLOR_Lab2RGB)
-    resultLab = cv2.resize(resultLab, (col, row))
-
-    plt.imshow(resultLab)
-    plt.axis('off')
-    plt.show()
 
 
-# validate network
+outputImg = outputImg[0].cpu().data.numpy()
+outputImg = outputImg.transpose((1,2,0))
+outputImg = np.squeeze(outputImg)
+outputImg = (outputImg*255.0).astype(np.uint8)
+Lab[:,:,0] = outputImg
+resultLab = cv2.cvtColor(Lab, cv2.COLOR_LAB2BGR)
+resultLab = cv2.resize(resultLab, (col, row))
 
-torch.save(hourglass_network.state_dict(),'./trained_model/my_trained_model')
+cv2.imshow('img',resultLab)
+cv2.waitKey(0)
+
+
+torch.save(hourglass_network.state_dict(),'my_trained_model')
